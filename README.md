@@ -1,14 +1,16 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# asb
+# sandbox-nap
 
-Apple Container のサンドボックスを、アイドル時間に応じて **hot → stopped → archived** へ自動で降格し、`asb exec` を合図に復元する常駐ツール。AI コーディングエージェントのコマンド実行先を 1 台の Mac に多数置いても、使っていないサンドボックスがメモリを占有し続けないようにする。
+Apple Container のサンドボックスを、アイドル時間に応じて **hot → stopped → archived** へ自動で降格し、`sandbox-nap exec` を合図に復元する常駐ツール。AI コーディングエージェントのコマンド実行先を 1 台の Mac に多数置いても、使っていないサンドボックスがメモリを占有し続けないようにする。
 
 考え方は [Sandstorm](https://53able.github.io/docs-site/docs/sandstorm.html)(アイドルなサンドボックスを段階的に降格し、アクセスを合図に起こす Linux 向けデーモン)から借りている。Apple Container の公開 CLI にはメモリ状態を保ったまま退避する手段が無いため、段階の中身は Sandstorm と異なる(下記)。
 
 - 対応環境: Apple silicon の macOS、Apple `container` CLI 1.7 系
 - 実装: Rust の単一バイナリ。Apple Container の操作は `container` CLI の子プロセス呼び出しのみ
 - 権限: ユーザー権限で動く。root は不要
+
+旧 CLI 名は `asb` です。既存のスクリプトではコマンド名を `sandbox-nap` に変更してください。設定・管理データは引き続き `ASB_*`、`~/.asb`、既存のコンテナラベルを使います。
 
 ## 段階
 
@@ -26,34 +28,34 @@ Apple Container のサンドボックスを、アイドル時間に応じて **h
 
 ```sh
 cargo build --release
-cp target/release/asb ~/.local/bin/   # PATH の通った場所へ
+cp target/release/sandbox-nap ~/.local/bin/   # PATH の通った場所へ
 
-asb daemon &                          # デーモン(フォアグラウンドで動く。ログは標準エラー)
+sandbox-nap daemon &                          # デーモン(フォアグラウンドで動く。ログは標準エラー)
 
-asb create box1 --image alpine:3.22 --memory 512          # 既定は外向き通信なし
-asb create box2 --image alpine:3.22 --internet            # インターネット可
-asb exec box1 -- sh -c 'echo hello > /root/f'
-asb exec -it box1 -- sh                                   # 対話シェル
-asb cp ./local.txt box1:/root/local.txt
-asb cp box1:/root/f ./f
-asb ls                                                    # 一覧(--json で JSON)
-asb rm box1                                               # コンテナと退避イメージを削除
+sandbox-nap create box1 --image alpine:3.22 --memory 512          # 既定は外向き通信なし
+sandbox-nap create box2 --image alpine:3.22 --internet            # インターネット可
+sandbox-nap exec box1 -- sh -c 'echo hello > /root/f'
+sandbox-nap exec -it box1 -- sh                                   # 対話シェル
+sandbox-nap cp ./local.txt box1:/root/local.txt
+sandbox-nap cp box1:/root/f ./f
+sandbox-nap ls                                                    # 一覧(--json で JSON)
+sandbox-nap rm box1                                               # コンテナと退避イメージを削除
 ```
 
-`asb exec` はサンドボックス内のコマンドの終了コードをそのまま返す。
+`sandbox-nap exec` はサンドボックス内のコマンドの終了コードをそのまま返す。
 
 | 終了コード | 意味 |
 |-----------:|------|
-| 69 | デーモンに接続できない(`asb daemon` で起動する) |
+| 69 | デーモンに接続できない(`sandbox-nap daemon` で起動する) |
 | 75 | 受付判定で拒否された(hot の割当メモリ合計が上限を超え、止められる hot も無い) |
-| 1 | その他の asb のエラー |
+| 1 | その他の sandbox-nap のエラー |
 
 ### 作成時のオプション
 
-- `--image <ref>`(必須)。イメージは `sleep infinity` を実行できる必要がある。asb はエントリポイントを `sleep infinity` に固定し、`--init` を付けて常駐させる。イメージ既定のコマンドは使わない。
+- `--image <ref>`(必須)。イメージは `sleep infinity` を実行できる必要がある。sandbox-nap はエントリポイントを `sleep infinity` に固定し、`--init` を付けて常駐させる。イメージ既定のコマンドは使わない。
 - `--memory <MB>`(既定 1024)、`--cpus <N>`
 - `--internet`: インターネットへの外向き通信を許可する。付けなければ `asb-internal`(`container network create --internal`)に接続する。
-- 環境変数と作業ディレクトリは作成時ではなく `asb exec -e K=V -w <dir>` で渡す。
+- 環境変数と作業ディレクトリは作成時ではなく `sandbox-nap exec -e K=V -w <dir>` で渡す。
 
 ### 設定
 
@@ -81,21 +83,21 @@ asb rm box1                                               # コンテナと退�
 
 - デーモンは SQLite に「あるべき状態」(作成時の引数、最終アクセス時刻、退避イメージの参照名、実行中の exec のリース)を持ち、実際の状態は毎回 `container ls -a --format json` から読む。
 - 管理対象はラベル `asb.managed=true` で識別する。このラベルを持たないコンテナ(例: `buildkit`)は一覧にも出さず、停止・削除・commit もしない。破壊的操作の直前に毎回ラベルを確認する。
-- `asb exec` はデーモンからリースを取り(必要ならここで復元)、CLI 自身が `container exec` を起動する。リースは CLI と `container exec` の PID・開始時刻とともに SQLite に保存され、両方のプロセスが終わるまで有効。デーモンを再起動しても実行中の exec は降格から守られる。
+- `sandbox-nap exec` はデーモンからリースを取り(必要ならここで復元)、CLI 自身が `container exec` を起動する。リースは CLI と `container exec` の PID・開始時刻とともに SQLite に保存され、両方のプロセスが終わるまで有効。デーモンを再起動しても実行中の exec は降格から守られる。
 - 受付判定: hot を増やす操作(作成・起床)の前に、hot の割当メモリ合計 + 要求量 が上限を超えないかを判定する。超える場合は、実行中の exec が無い hot を最終アクセスの古い順に停止して空きを作る。それでも足りなければ拒否する(終了コード 75)。
 - archived の手順: `commit` → イメージの存在確認 → DB に確定 → コンテナ削除 → 旧世代のイメージ削除。途中で失敗したらコンテナを残し、次の周期で再試行する。退避イメージは `asb-archive/<name>:g<世代>`。
 
 ## 既知の制約
 
 - **デーモンを経由しない `container exec` はアイドル判定に入らない。** そのサンドボックスは実行中でも降格されうる(降格された exec は終了コード 137 で終わる)。
-- **リースはホスト側のプロセス(`asb exec` の CLI と、その子の `container exec`)の生存で判定する。ゲスト内のプロセスは見ていない。**
+- **リースはホスト側のプロセス(`sandbox-nap exec` の CLI と、その子の `container exec`)の生存で判定する。ゲスト内のプロセスは見ていない。**
   - CLI だけを強制終了(SIGKILL)した場合、子の `container exec` が動いている間はリースが残り、降格されない。
   - `container exec` も終了すると、ゲスト内の処理が動き続けていてもリースは解放され、降格の対象になる(Phase 0 の実測で、`container exec` のクライアントを kill してもゲスト内プロセスは残ることを確認)。
   - CLI が `container exec` を起動してからデーモンへの登録(Attach)を終えるまでの間に CLI が強制終了された場合、子の `container exec` はリースに記録されていないので保護されない。
 - **internal ネットワークはホストへは到達できる。** 外部(インターネット)へは出られないが、ゲートウェイ(ホスト)のサービスには届く。アドレス単位の allow / deny は無い。
 - 受付判定は割当メモリ(`--memory`)の合計だけで判断する。VM ごとのオーバーヘッドは数えない。
 - 起床はコールドブート(プロセスは新しく始まる)。
-- 退避イメージの削除は `asb rm` と次回の降格時に行う。古い退避イメージの自動削除(期限切れ)は無い。
+- 退避イメージの削除は `sandbox-nap rm` と次回の降格時に行う。古い退避イメージの自動削除(期限切れ)は無い。
 - デーモンの常駐は手動起動。LaunchAgent の設定は同梱していない。
 
 ## Non-Goals

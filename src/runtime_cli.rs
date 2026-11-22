@@ -121,7 +121,7 @@ impl<R: Runner> CliRuntime<R> {
         Ok(out)
     }
 
-    /// 破壊的操作の直前に、対象が asb の管理物であることを再取得して確認する。
+    /// 破壊的操作の直前に、対象が sandbox-nap の管理物であることを再取得して確認する。
     fn require_managed(&self, name: &str) -> RtResult<ContainerInfo> {
         match self.find(name)? {
             Some(c) if c.managed => Ok(c),
@@ -134,7 +134,7 @@ impl<R: Runner> CliRuntime<R> {
     pub fn version_warning(&self) -> Option<String> {
         match self.exec(&["--version"]) {
             Ok(o) if o.stdout.contains("version 1.7.") => None,
-            Ok(o) => Some(format!("warning: asb supports container 1.7.x only; found: {}", o.stdout.trim())),
+            Ok(o) => Some(format!("warning: sandbox-nap supports container 1.7.x only; found: {}", o.stdout.trim())),
             Err(e) => Some(format!("warning: cannot determine container version: {e}")),
         }
     }

@@ -44,9 +44,9 @@ pub enum RuntimeError {
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RuntimeError::NotManaged(n) => write!(f, "{n} is not managed by asb (no asb.managed=true label)"),
+            RuntimeError::NotManaged(n) => write!(f, "{n} is not managed by sandbox-nap (no asb.managed=true label)"),
             RuntimeError::NotFound(n) => write!(f, "{n} not found"),
-            RuntimeError::ImageRefRejected(r) => write!(f, "refusing to touch image {r}: not an asb archive of this sandbox"),
+            RuntimeError::ImageRefRejected(r) => write!(f, "refusing to touch image {r}: not a sandbox-nap archive of this sandbox"),
             RuntimeError::NetworkConflict(n) => {
                 write!(f, "network {n} exists without asb.managed=true; refusing to reuse it")
             }
@@ -63,7 +63,7 @@ impl std::error::Error for RuntimeError {}
 pub type RtResult<T> = Result<T, RuntimeError>;
 
 /// Apple Container の操作。破壊的操作(stop / remove / commit / image_remove)は
-/// 実装側で対象が asb の管理物であることを確認してから実行しなければならない。
+/// 実装側で対象が sandbox-nap の管理物であることを確認してから実行しなければならない。
 pub trait ContainerRuntime: Send + Sync {
     fn list(&self) -> RtResult<Vec<ContainerInfo>>;
     fn create(&self, spec: &CreateSpec) -> RtResult<()>;

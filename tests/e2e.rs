@@ -114,7 +114,7 @@ impl Env {
     fn start_daemon(&mut self, settings: &[(&str, &str)]) {
         assert!(self.daemon.is_none(), "daemon already running");
         let log = OpenOptions::new().create(true).append(true).open(self.log_path()).unwrap();
-        let child = Command::new(env!("CARGO_BIN_EXE_asb"))
+        let child = Command::new(env!("CARGO_BIN_EXE_sandbox-nap"))
             .arg("daemon")
             .env("ASB_HOME", &self.home)
             .env("ASB_TICK_SECS", TICK_SECS.to_string())
@@ -124,7 +124,7 @@ impl Env {
             .spawn()
             .unwrap();
         self.daemon = Some(child);
-        wait_until("daemon answers", Duration::from_secs(15), || self.asb(&["ls", "--json"]).status.success());
+        wait_until("daemon answers", Duration::from_secs(15), || self.cli(&["ls", "--json"]).status.success());
     }
 
     fn kill_daemon(&mut self) {
@@ -135,20 +135,20 @@ impl Env {
     }
 
     fn cmd(&self, args: &[&str]) -> Command {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_asb"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_sandbox-nap"));
         c.args(args).env("ASB_HOME", &self.home);
         c
     }
 
-    fn asb(&self, args: &[&str]) -> Output {
+    fn cli(&self, args: &[&str]) -> Output {
         self.cmd(args).output().unwrap()
     }
 
     fn ok(&self, args: &[&str]) -> String {
-        let o = self.asb(args);
+        let o = self.cli(args);
         assert!(
             o.status.success(),
-            "asb {args:?} failed ({:?}): {}\n--- daemon log ---\n{}",
+            "sandbox-nap {args:?} failed ({:?}): {}\n--- daemon log ---\n{}",
             o.status.code(),
             String::from_utf8_lossy(&o.stderr),
             self.log()
@@ -241,11 +241,11 @@ fn wake_on_exec() {
     let n = e.create("a", &["--memory", "256"]);
     let m = e.write_marker(&n);
     wait_until("stopped", deadline(3), || container_state(&n).as_deref() == Some("stopped"));
-    let out = e.asb(&["exec", &n, "--", "cat", "/root/marker"]);
+    let out = e.cli(&["exec", &n, "--", "cat", "/root/marker"]);
     assert_eq!(out.status.code(), Some(0));
     assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), m);
     assert_eq!(container_state(&n).as_deref(), Some("running"));
-    let out = e.asb(&["exec", &n, "--", "sh", "-c", "exit 7"]);
+    let out = e.cli(&["exec", &n, "--", "sh", "-c", "exit 7"]);
     assert_eq!(out.status.code(), Some(7));
 }
 
@@ -296,7 +296,7 @@ fn refuses_unmanaged() {
     let mut e = Env::new();
     e.start_daemon(&[("ASB_IDLE_STOP_SECS", "2"), ("ASB_IDLE_ARCHIVE_SECS", "4")]);
     let d = format!("asb-e2e-unmanaged-{}", &e.prefix["asb-e2e-".len()..]);
-    // asb で作って DB 行を持たせた後、同名の管理対象外コンテナに置き換える
+    // sandbox-nap で作って DB 行を持たせた後、同名の管理対象外コンテナに置き換える
     e.ok(&["create", &d, "--image", IMAGE, "--memory", "256"]);
     let rm = Command::new("container").args(["rm", "-f", &d]).output().unwrap();
     assert!(rm.status.success());
@@ -309,10 +309,10 @@ fn refuses_unmanaged() {
     let started = container_entry(&d).unwrap()["status"]["startedDate"].clone();
 
     for args in [vec!["exec", d.as_str(), "--", "true"], vec!["rm", d.as_str()]] {
-        let o = e.asb(&args);
-        assert_ne!(o.status.code(), Some(0), "asb {args:?} must fail");
+        let o = e.cli(&args);
+        assert_ne!(o.status.code(), Some(0), "sandbox-nap {args:?} must fail");
         let err = String::from_utf8_lossy(&o.stderr);
-        assert!(err.contains("not managed"), "asb {args:?} stderr: {err}");
+        assert!(err.contains("not managed"), "sandbox-nap {args:?} stderr: {err}");
     }
     std::thread::sleep(Duration::from_secs(12));
     let after = container_entry(&d).unwrap();
@@ -367,7 +367,7 @@ fn admission_reject() {
         e.view(&a).is_some_and(|v| v["leases"] == 1) && e.view(&b).is_some_and(|v| v["leases"] == 1)
     });
     let c = e.name("c");
-    let o = e.asb(&["create", &c, "--image", IMAGE, "--memory", "512"]);
+    let o = e.cli(&["create", &c, "--image", IMAGE, "--memory", "512"]);
     assert_eq!(o.status.code(), Some(75));
     let err = String::from_utf8_lossy(&o.stderr);
     assert!(err.contains("1024") && err.contains("512"), "stderr: {err}");
@@ -389,9 +389,9 @@ fn network_modes() {
     let internal = e.create("int", &["--memory", "256"]);
     let internet = e.create("net", &["--memory", "256", "--internet"]);
     let probe = format!("nc -w 5 {EXT} {EXT_PORT} </dev/null >/dev/null 2>&1");
-    let o = e.asb(&["exec", &internal, "--", "sh", "-c", &probe]);
+    let o = e.cli(&["exec", &internal, "--", "sh", "-c", &probe]);
     assert_ne!(o.status.code(), Some(0), "internal sandbox reached {EXT}");
-    let o = e.asb(&["exec", &internet, "--", "sh", "-c", &probe]);
+    let o = e.cli(&["exec", &internet, "--", "sh", "-c", &probe]);
     assert_eq!(o.status.code(), Some(0), "internet sandbox could not reach {EXT}");
 }
 
@@ -488,5 +488,5 @@ fn cli_surface() {
     assert!(!images().iter().any(|i| i.starts_with(&format!("asb-archive/{n}:"))));
     assert!(e.view(&n).is_none());
     // 存在しない名前の rm は失敗する
-    assert_ne!(e.asb(&["rm", &n]).status.code(), Some(0));
+    assert_ne!(e.cli(&["rm", &n]).status.code(), Some(0));
 }

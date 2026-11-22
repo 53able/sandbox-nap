@@ -36,7 +36,7 @@ fn from_response(r: &Response) -> CliError {
     };
     let c = r.code.as_deref().unwrap_or("error");
     let msg = r.message.as_deref().unwrap_or("request failed");
-    let text = if c == code::NOT_MANAGED { format!("asb: not managed: {msg}") } else { format!("asb: {c}: {msg}") };
+    let text = if c == code::NOT_MANAGED { format!("sandbox-nap: not managed: {msg}") } else { format!("sandbox-nap: {c}: {msg}") };
     CliError { exit, message: text }
 }
 
@@ -67,7 +67,7 @@ fn no_daemon(cfg: &Config, e: &std::io::Error) -> CliError {
     CliError {
         exit: EXIT_NO_DAEMON,
         message: format!(
-            "asb: cannot connect to the daemon at {} ({e}). Start it with `asb daemon`.",
+            "sandbox-nap: cannot connect to the daemon at {} ({e}). Start it with `sandbox-nap daemon`.",
             cfg.socket_path.display()
         ),
     }
@@ -155,9 +155,9 @@ fn run_leased(cfg: &Config, name: &str, mut command: Command) -> CliResult<ExitS
     if !resp.ok {
         return Err(from_response(&resp));
     }
-    let lease_id = resp.lease_id.ok_or_else(|| CliError { exit: EXIT_FAILURE, message: "asb: daemon returned no lease".into() })?;
+    let lease_id = resp.lease_id.ok_or_else(|| CliError { exit: EXIT_FAILURE, message: "sandbox-nap: daemon returned no lease".into() })?;
 
-    let mut child = command.spawn().map_err(|e| CliError { exit: EXIT_FAILURE, message: format!("asb: cannot run container: {e}") })?;
+    let mut child = command.spawn().map_err(|e| CliError { exit: EXIT_FAILURE, message: format!("sandbox-nap: cannot run container: {e}") })?;
     // 子の実行中は CLI 自身が SIGINT / SIGQUIT で落ちないようにする(子には届く)。
     // SAFETY: シグナル処理を無視に設定するだけ。
     unsafe {
@@ -206,10 +206,10 @@ fn run_leased(cfg: &Config, name: &str, mut command: Command) -> CliResult<ExitS
         });
     }
 
-    let status = child.wait().map_err(|e| CliError { exit: EXIT_FAILURE, message: format!("asb: wait failed: {e}") })?;
+    let status = child.wait().map_err(|e| CliError { exit: EXIT_FAILURE, message: format!("sandbox-nap: wait failed: {e}") })?;
     done.store(true, Ordering::SeqCst);
     if call_with_retry(cfg, &Request::Release { lease_id }).is_none() {
-        eprintln!("asb: warning: could not release lease {lease_id}; the daemon will release it once this process exits");
+        eprintln!("sandbox-nap: warning: could not release lease {lease_id}; the daemon will release it once this process exits");
     }
     Ok(status)
 }
@@ -228,7 +228,7 @@ pub struct ExecOptions {
 
 pub fn exec(cfg: &Config, name: &str, opts: &ExecOptions, cmd: &[String]) -> CliResult<i32> {
     if cmd.is_empty() {
-        return Err(CliError { exit: EXIT_FAILURE, message: "asb: exec needs a command after --".into() });
+        return Err(CliError { exit: EXIT_FAILURE, message: "sandbox-nap: exec needs a command after --".into() });
     }
     let mut c = Command::new("container");
     c.arg("exec");
@@ -258,10 +258,10 @@ pub fn cp(cfg: &Config, src: &str, dst: &str) -> CliResult<i32> {
     let name = match (sandbox_of(src), sandbox_of(dst)) {
         (Some(n), None) | (None, Some(n)) => n.to_string(),
         (Some(_), Some(_)) => {
-            return Err(CliError { exit: EXIT_FAILURE, message: "asb: cp between two sandboxes is not supported".into() })
+            return Err(CliError { exit: EXIT_FAILURE, message: "sandbox-nap: cp between two sandboxes is not supported".into() })
         }
         (None, None) => {
-            return Err(CliError { exit: EXIT_FAILURE, message: "asb: one side of cp must be <sandbox>:<path>".into() })
+            return Err(CliError { exit: EXIT_FAILURE, message: "sandbox-nap: one side of cp must be <sandbox>:<path>".into() })
         }
     };
     let mut c = Command::new("container");

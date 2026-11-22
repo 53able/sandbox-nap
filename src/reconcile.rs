@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resolved {
-    /// asb が扱うサンドボックス。
+    /// sandbox-nap が扱うサンドボックス。
     Managed { tier: Tier, row: Option<Sandbox> },
     /// `asb.managed=true` を持たないコンテナ。表示も操作もしない。
     Unmanaged,

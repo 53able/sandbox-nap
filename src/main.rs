@@ -1,4 +1,4 @@
-//! asb: Apple Container のサンドボックスを、アイドル時間に応じて
+//! sandbox-nap: Apple Container のサンドボックスを、アイドル時間に応じて
 //! hot → stopped → archived に降格し、exec を合図に復元する。
 
 mod admission;
@@ -19,7 +19,7 @@ mod store;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "asb", version, about = "Idle-tiering sandboxes on Apple Container (hot / stopped / archived)")]
+#[command(name = "sandbox-nap", version, about = "Idle-tiering sandboxes on Apple Container (hot / stopped / archived)")]
 struct Cli {
     #[command(subcommand)]
     command: Cmd,
@@ -73,14 +73,14 @@ fn main() {
     let cfg = match config::Config::load() {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("asb: config error: {e:#}");
+            eprintln!("sandbox-nap: config error: {e:#}");
             std::process::exit(client::EXIT_FAILURE);
         }
     };
     let result: Result<i32, client::CliError> = match cli.command {
         Cmd::Daemon => daemon::run(cfg).map(|_| 0).map_err(|e| client::CliError {
             exit: client::EXIT_FAILURE,
-            message: format!("asb daemon: {e:#}"),
+            message: format!("sandbox-nap daemon: {e:#}"),
         }),
         Cmd::Create { name, image, cpus, memory, internet } => {
             client::create(&cfg, &name, &image, cpus, memory, internet).map(|_| 0)

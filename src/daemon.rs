@@ -316,15 +316,15 @@ impl Daemon {
             None => Err(ApiError::new(code::NOT_FOUND, format!("{name} not found"))),
             Some(Resolved::Unmanaged) => Err(ApiError::new(
                 code::NOT_MANAGED,
-                format!("{name} is not managed by asb (no asb.managed=true label)"),
+                format!("{name} is not managed by sandbox-nap (no asb.managed=true label)"),
             )),
             Some(Resolved::Managed { tier: Tier::Orphan, .. }) => Err(ApiError::new(
                 code::ORPHAN,
-                format!("{name} has the asb label but no record; remove it with `asb rm {name}`"),
+                format!("{name} has the asb.managed label but no record; remove it with `sandbox-nap rm {name}`"),
             )),
             Some(Resolved::Managed { tier: Tier::Lost, .. }) => Err(ApiError::new(
                 code::LOST,
-                format!("{name} has neither a container nor an archive; remove it with `asb rm {name}`"),
+                format!("{name} has neither a container nor an archive; remove it with `sandbox-nap rm {name}`"),
             )),
             Some(Resolved::Managed { tier: Tier::Hot, .. }) => self.record_lease(name, cli_pid, cli_start),
             Some(Resolved::Managed { tier, row: Some(row) }) if tier == Tier::Stopped || tier == Tier::Archived => {
@@ -443,7 +443,7 @@ impl Daemon {
             None => Err(ApiError::new(code::NOT_FOUND, format!("{name} not found"))),
             Some(Resolved::Unmanaged) => Err(ApiError::new(
                 code::NOT_MANAGED,
-                format!("{name} is not managed by asb (no asb.managed=true label)"),
+                format!("{name} is not managed by sandbox-nap (no asb.managed=true label)"),
             )),
             Some(Resolved::Managed { tier, .. }) => {
                 let leases = self.store().lease_count(name)?;
@@ -601,7 +601,7 @@ fn acquire_instance_lock(cfg: &Config) -> anyhow::Result<std::fs::File> {
     let f = std::fs::OpenOptions::new().create(true).truncate(false).write(true).open(&path)?;
     // SAFETY: 有効なファイル記述子。
     let rc = unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-    anyhow::ensure!(rc == 0, "another asb daemon is running (lock {} is held)", path.display());
+    anyhow::ensure!(rc == 0, "another sandbox-nap daemon is running (lock {} is held)", path.display());
     Ok(f)
 }
 
