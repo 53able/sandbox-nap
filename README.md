@@ -145,4 +145,4 @@ e2e は `alpine:3.22` を使い、ネットワークのテストで `1.1.1.1:443
 
 ## ライセンス
 
-Apache-2.0
+[Apache License 2.0](LICENSE)
